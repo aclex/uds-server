@@ -21,7 +21,7 @@
 
 #include "uds-server.h"
 
-#define DEBUG 0
+#define DEBUG 1
 //#define VIN "1G1ZT53826F109149"
 //#define VIN "5YJSA1S2FEFA00001"
 #define VIN "WAUZZZ8V9FA149850"
@@ -1021,6 +1021,49 @@ void handle_gm_read_diag(int can, struct canfd_frame frame) {
 }
 
 /*
+  My checks
+*/
+void handle_board_part_number_read(int can, struct canfd_frame frame) {
+  const unsigned char rx_can_id = 0x4a;
+  char resp[23];
+  resp[0] = 0x62;
+  resp[1] = 0xf0;
+  resp[2] = 0x12;
+  resp[3] = 'T';
+  resp[4] = 'h';
+  resp[5] = 'i';
+  resp[6] = 's';
+  resp[7] = ' ';
+  resp[8] = 'i';
+  resp[9] = 's';
+  resp[10] = ' ';
+  resp[11] = 'b';
+  resp[12] = 'o';
+  resp[13] = 'a';
+  resp[14] = 'r';
+  resp[15] = 'd';
+  resp[16] = ' ';
+  resp[17] = 'n';
+  resp[18] = 'u';
+  resp[19] = 'm';
+  resp[20] = 'b';
+  resp[21] = 'e';
+  resp[22] = 'r';
+  isotp_send_to(can, &resp, sizeof(resp), rx_can_id);
+  sleep(1);
+}
+
+void handle_board_serial_number_read(int can, struct canfd_frame frame) {
+  const unsigned char rx_can_id = 0x4a;
+  char resp[3];
+  resp[0] = 0x7f;
+  resp[1] = 0xf0;
+  resp[2] = 0x33;
+  isotp_send_to(can, &resp, sizeof(resp), rx_can_id);
+  sleep(1);
+}
+
+/*
   Gateway
 */
 void handle_vcds_710(int can, struct canfd_frame frame) {
@@ -1389,6 +1432,28 @@ void handle_pkt(int can, struct canfd_frame frame) {
           //if(verbose) plog("Unhandled mode/sid: %02X\n", frame.data[1]);
           if(verbose) plog("Unhandled mode/sid: %s\n", get_mode_str(frame));
           break;
+      }
+      break;
+    case 0x441:
+      plog("My checks\n");
+      if (frame.data[0] == 0x30)
+      {
+          plog("My checks - flow control\n");
+          flow_control_push_to(can, 0x4a);
+      }
+      if (frame.data[1] == 0x22)
+      {
+        plog("My checks in\n");
+        if (frame.data[2] == 0xf0 && frame.data[3] == 0x12)
+        {
+          plog("Board part number read - positive response\n");
+          handle_board_part_number_read(can, frame);
+        }
+        else if (frame.data[2] == 0xf0 && frame.data[3] == 0x13)
+        {
+          plog("Board serial number read negative response\n");
+          handle_board_serial_number_read(can, frame);
+        }
       }
       break;
     default:
